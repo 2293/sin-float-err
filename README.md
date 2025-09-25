@@ -1,6 +1,8 @@
 # sin-float-err
 32位浮点计算sin(x)误差分析
 
+[Sin函数Taylor展开误差可视化工具](https://2293.github.io/sin-float-err/)
+
 ### 并行计算sin(x)的值
 ```gp
 \pb64 \\ set n significant digits / bits \p n, \pb n
