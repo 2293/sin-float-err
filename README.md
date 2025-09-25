@@ -3,10 +3,12 @@
 
 [Sin函数Taylor展开误差可视化工具](https://2293.github.io/sin-float-err/)
 
+![截图：Sin函数Taylor展开误差](Screenshot_2025-09-26.jpg)
+
 ### 并行计算sin(x)的值
 ```gp
 \pb64 \\ set n significant digits / bits \p n, \pb n
-num=2^32
+num=2^10
 parfor(k = 1, num, print(sin(Pi/2/k))) \\并行计算num个sin(x)的值
 \quit
 ```
