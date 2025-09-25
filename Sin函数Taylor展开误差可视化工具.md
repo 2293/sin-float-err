@@ -1,3 +1,10 @@
+> 写一个. html:
+1. 用户填写 range 函数的参数生成一个 Float32Array a
+2. 将 a  降周期为 a1，转为 sin 调用时相等 的-Pi/2,Pi/2 之间的值
+3. 令 f(x)为 sin 函数的 Taylor 展开前 n 项，n 由用户输入，计算 a1.map (f)和 a.map(Math.sin )的 误差
+4. 可视化得到的误差数组
+
+
 Sin函数Taylor展开误差可视化工具
 
 我将创建一个HTML页面，允许用户输入range函数参数，计算Sin函数的Taylor展开近似值，并可视化误差。
