@@ -16,7 +16,7 @@ Sin函数Taylor展开误差可视化工具
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sin函数Taylor展开误差分析</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/chart.js"></script>
     <style>
         * {
             box-sizing: border-box;
