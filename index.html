@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sin函数Taylor展开误差分析（含ULP）</title>
+    <title>IEEE 754浮点数误差分析工具</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/regression@2.0.1/dist/regression.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -21,11 +22,11 @@
         }
         
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
             background: rgba(0, 0, 0, 0.7);
             border-radius: 15px;
-            padding: 3px;
+            padding: 30px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
         
@@ -76,7 +77,7 @@
             font-weight: 500;
         }
         
-        input {
+        input, select {
             width: 100%;
             padding: 10px;
             border: none;
@@ -106,7 +107,7 @@
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
         }
         
-        .results {
+        .chart-section {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
@@ -118,6 +119,32 @@
             padding: 20px;
             border-radius: 10px;
             height: 400px;
+        }
+        
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            border-bottom: 3px solid #fdbb2d;
+            color: #fdbb2d;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
         }
         
         .data-display {
@@ -145,6 +172,11 @@
             color: #fdbb2d;
             position: sticky;
             top: 0;
+            cursor: pointer;
+        }
+        
+        .data-table th:hover {
+            background: rgba(255, 255, 255, 0.2);
         }
         
         .summary {
@@ -182,11 +214,43 @@
             line-height: 1.5;
         }
         
-        @media (max-width: 768px) {
-            .results {
+        .advanced-options {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .toggle-advanced {
+            background: none;
+            border: none;
+            color: #fdbb2d;
+            cursor: pointer;
+            font-size: 0.9rem;
+            text-decoration: underline;
+            margin-bottom: 10px;
+        }
+        
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        
+        .export-buttons button {
+            width: auto;
+            margin: 0;
+            padding: 8px 15px;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 1024px) {
+            .chart-section {
                 grid-template-columns: 1fr;
             }
-            
+        }
+        
+        @media (max-width: 768px) {
             .input-section {
                 grid-template-columns: 1fr;
             }
@@ -194,13 +258,1235 @@
             .data-table {
                 font-size: 0.8rem;
             }
+            
+            .export-buttons {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Sin函数Taylor展开误差分析（含ULP）</h1>
+            <h1>IEEE 754浮点数误差分析工具</h1>
             <p class="description">
                 本工具允许您生成一个Float32Array，将其值映射到[-π/2, π/2]区间，然后使用Taylor展开近似计算sin函数值，
-                并与Math.sin()的精确值进行比较，最终可视化误差分布。新增ULP（Unit in the Last Place）误差计算
+                并与Math.sin()的精确值进行比较，分析IEEE 754浮点数误差和ULP（Unit in the Last Place）误差。
+            </p>
+        </header>
+        
+        <section class="input-section">
+            <div class="input-group">
+                <h2>Range函数参数</h2>
+                <div class="form-group">
+                    <label for="start">起始值 (start):</label>
+                    <input type="number" id="start" value="0" step="any">
+                </div>
+                <div class="form-group">
+                    <label for="stop">结束值 (stop):</label>
+                    <input type="number" id="stop" value="10" step="any">
+                </div>
+                <div class="form-group">
+                    <label for="step">步长 (step):</label>
+                    <input type="number" id="step" value="0.5" step="any">
+                </div>
+                <div class="form-group">
+                    <label for="function">目标函数:</label>
+                    <select id="function">
+                        <option value="sin">sin(x)</option>
+                        <option value="cos">cos(x)</option>
+                        <option value="exp">exp(x)</option>
+                        <option value="log">log(1+x)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="input-group">
+                <h2>Taylor展开参数</h2>
+                <div class="form-group">
+                    <label for="n">展开项数 (n):</label>
+                    <input type="number" id="n" value="5" min="1" max="20">
+                </div>
+                <div class="form-group">
+                    <label for="precision">精度控制 (小数位数):</label>
+                    <input type="number" id="precision" value="6" min="0" max="10">
+                </div>
+                <div class="form-group">
+                    <label for="domain">值域映射:</label>
+                    <select id="domain">
+                        <option value="auto">自动（基于函数）</option>
+                        <option value="custom">自定义</option>
+                    </select>
+                </div>
+                <div class="form-group custom-domain" style="display: none;">
+                    <label for="customMin">自定义最小值:</label>
+                    <input type="number" id="customMin" value="-1.57" step="any">
+                </div>
+                <div class="form-group custom-domain" style="display: none;">
+                    <label for="customMax">自定义最大值:</label>
+                    <input type="number" id="customMax" value="1.57" step="any">
+                </div>
+                
+                <button class="toggle-advanced" id="toggleAdvanced">显示高级选项</button>
+                
+                <div class="advanced-options" style="display: none;">
+                    <div class="form-group">
+                        <label for="errorType">误差计算方式:</label>
+                        <select id="errorType">
+                            <option value="absolute">绝对误差</option>
+                            <option value="relative">相对误差</option>
+                            <option value="both">两者都显示</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="chartType">图表类型:</label>
+                        <select id="chartType">
+                            <option value="line">折线图</option>
+                            <option value="scatter">散点图</option>
+                            <option value="bar">柱状图</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <button id="calculateBtn">计算并可视化</button>
+        
+        <section class="chart-section">
+            <div class="chart-container">
+                <div class="tabs">
+                    <div class="tab active" data-tab="error">误差分析</div>
+                    <div class="tab" data-tab="comparison">函数对比</div>
+                    <div class="tab" data-tab="distribution">误差分布</div>
+                </div>
+                <div class="tab-content active" id="error-tab">
+                    <canvas id="errorChart"></canvas>
+                </div>
+                <div class="tab-content" id="comparison-tab">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+                <div class="tab-content" id="distribution-tab">
+                    <canvas id="distributionChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="data-display">
+                <h2>数据详情（含ULP误差）</h2>
+                <table class="data-table" id="dataTable">
+                    <thead>
+                        <tr>
+                            <th data-sort="index">索引</th>
+                            <th data-sort="original">原值</th>
+                            <th data-sort="reduced">降周期值</th>
+                            <th data-sort="taylor">Taylor近似</th>
+                            <th data-sort="exact">精确值</th>
+                            <th data-sort="absError">绝对误差</th>
+                            <th data-sort="relError">相对误差</th>
+                            <th data-sort="ulpError">ULP误差</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTableBody">
+                        <!-- 数据将通过JavaScript填充 -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        
+        <section class="summary">
+            <h2>误差统计</h2>
+            <div class="summary-grid">
+                <div>
+                    <h3>绝对误差统计</h3>
+                    <div class="summary-item">
+                        <span>最大绝对误差:</span>
+                        <span id="maxError" class="summary-value">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>平均绝对误差:</span>
+                        <span id="avgError" class="summary-value">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>均方根误差 (RMSE):</span>
+                        <span id="rmse" class="summary-value">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>数据点数:</span>
+                        <span id="dataPoints" class="summary-value">-</span>
+                    </div>
+                </div>
+                <div>
+                    <h3>ULP误差统计</h3>
+                    <div class="summary-item">
+                        <span>最大ULP误差:</span>
+                        <span id="maxUlpError" class="summary-value">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>平均ULP误差:</span>
+                        <span id="avgUlpError" class="summary-value">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>ULP误差 > 0.5:</span>
+                        <span id="ulpOverHalf" class="summary-value">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>ULP误差 > 1:</span>
+                        <span id="ulpOverOne" class="summary-value">-</span>
+                    </div>
+                </div>
+                <div>
+                    <h3>相对误差统计</h3>
+                    <div class="summary-item">
+                        <span>最大相对误差:</span>
+                        <span id="maxRelError" class="summary-value">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>平均相对误差:</span>
+                        <span id="avgRelError" class="summary-value">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>相对误差 > 1%:</span>
+                        <span id="relOver1Percent" class="summary-value">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <span>相对误差 > 5%:</span>
+                        <span id="relOver5Percent" class="summary-value">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <h3>关于ULP（Unit in the Last Place）</h3>
+                <p>ULP是浮点数精度的基本单位，表示两个相邻浮点数之间的差值。对于32位浮点数(Float32)，ULP的大小取决于数值的大小：</p>
+                <ul>
+                    <li>在数值x处的ULP = 2<sup>floor(log₂|x|) - 23</sup></li>
+                    <li>ULP误差 = |计算值 - 精确值| / ULP(精确值)</li>
+                    <li>ULP误差小于0.5通常表示结果正确舍入</li>
+                    <li>ULP误差大于1表示结果与精确值相差至少一个浮点数单位</li>
+                </ul>
+            </div>
+            
+            <div class="export-buttons">
+                <button id="exportData">导出数据为CSV</button>
+                <button id="exportChart">导出图表为PNG</button>
+                <button id="saveSession">保存会话</button>
+                <button id="loadSession">加载会话</button>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // 全局变量
+        let errorChart = null;
+        let comparisonChart = null;
+        let distributionChart = null;
+        let currentData = null;
+        
+        // Range函数实现
+        function range(start, stop, step = 1) {
+            if (stop === undefined) {
+                stop = start;
+                start = 0;
+            }
+            
+            if (step === 0) {
+                throw new Error("步长不能为0");
+            }
+            
+            const length = Math.max(0, Math.ceil((stop - start) / step));
+            const result = new Float32Array(length);
+            
+            for (let i = 0; i < length; i++) {
+                result[i] = start + i * step;
+            }
+            
+            return result;
+        }
+        
+        // 根据选择的函数获取适当的映射区间
+        function getFunctionDomain(func, customMin, customMax) {
+            if (document.getElementById('domain').value === 'custom') {
+                return { min: customMin, max: customMax };
+            }
+            
+            switch(func) {
+                case 'sin':
+                case 'cos':
+                    return { min: -Math.PI/2, max: Math.PI/2 };
+                case 'exp':
+                    return { min: -1, max: 1 };
+                case 'log':
+                    return { min: 0, max: 1 };
+                default:
+                    return { min: -1, max: 1 };
+            }
+        }
+        
+        // 将值映射到适当的区间
+        function reduceToDomain(x, func, domain) {
+            if (func === 'sin' || func === 'cos') {
+                // 使用模运算将x映射到[0, 2π)区间
+                x = x % (2 * Math.PI);
+                
+                // 如果x为负，转换为正
+                if (x < 0) x += 2 * Math.PI;
+                
+                // 将x映射到[-π/2, π/2]区间
+                if (x <= Math.PI/2) {
+                    return x;
+                } else if (x <= 3*Math.PI/2) {
+                    return Math.PI - x;
+                } else {
+                    return x - 2 * Math.PI;
+                }
+            } else {
+                // 对于其他函数，使用线性映射到指定区间
+                const rangeSize = domain.max - domain.min;
+                const normalized = (x - domain.min) / rangeSize;
+                const clamped = Math.max(0, Math.min(1, normalized));
+                return domain.min + clamped * rangeSize;
+            }
+        }
+        
+        // 计算阶乘
+        function factorial(n) {
+            if (n === 0 || n === 1) return 1;
+            let result = 1;
+            for (let i = 2; i <= n; i++) {
+                result *= i;
+            }
+            return result;
+        }
+        
+        // 目标函数的Taylor展开
+        function taylorApproximation(x, n, func) {
+            switch(func) {
+                case 'sin':
+                    return taylorSin(x, n);
+                case 'cos':
+                    return taylorCos(x, n);
+                case 'exp':
+                    return taylorExp(x, n);
+                case 'log':
+                    return taylorLog(x, n);
+                default:
+                    return taylorSin(x, n);
+            }
+        }
+        
+        // Sin函数的Taylor展开
+        function taylorSin(x, n) {
+            let result = 0;
+            for (let i = 0; i < n; i++) {
+                const exponent = 2*i + 1;
+                const term = Math.pow(-1, i) * Math.pow(x, exponent) / factorial(exponent);
+                result += term;
+            }
+            return result;
+        }
+        
+        // Cos函数的Taylor展开
+        function taylorCos(x, n) {
+            let result = 0;
+            for (let i = 0; i < n; i++) {
+                const exponent = 2*i;
+                const term = Math.pow(-1, i) * Math.pow(x, exponent) / factorial(exponent);
+                result += term;
+            }
+            return result;
+        }
+        
+        // Exp函数的Taylor展开
+        function taylorExp(x, n) {
+            let result = 0;
+            for (let i = 0; i < n; i++) {
+                result += Math.pow(x, i) / factorial(i);
+            }
+            return result;
+        }
+        
+        // Log(1+x)函数的Taylor展开
+        function taylorLog(x, n) {
+            let result = 0;
+            for (let i = 1; i <= n; i++) {
+                const term = Math.pow(-1, i+1) * Math.pow(x, i) / i;
+                result += term;
+            }
+            return result;
+        }
+        
+        // 精确函数计算
+        function exactFunction(x, func) {
+            switch(func) {
+                case 'sin':
+                    return Math.sin(x);
+                case 'cos':
+                    return Math.cos(x);
+                case 'exp':
+                    return Math.exp(x);
+                case 'log':
+                    return Math.log(1 + x);
+                default:
+                    return Math.sin(x);
+            }
+        }
+        
+        // 计算32位浮点数在给定值处的ULP（Unit in the Last Place）
+        function ulp32(x) {
+            if (x === 0) return Math.pow(2, -149); // 最小正非规约数
+            
+            const absX = Math.abs(x);
+            // 计算指数部分
+            const exponent = Math.floor(Math.log2(absX));
+            // 计算ULP：2^(指数 - 23)
+            return Math.pow(2, exponent - 23);
+        }
+        
+        // 计算ULP误差
+        function calculateUlpError(computed, exact) {
+            if (exact === 0) {
+                // 如果精确值为0，使用最小正非规约数作为ULP
+                return Math.abs(computed) / Math.pow(2, -149);
+            }
+            return Math.abs(computed - exact) / ulp32(exact);
+        }
+        
+        // 计算相对误差
+        function calculateRelativeError(computed, exact) {
+            if (exact === 0) {
+                return computed === 0 ? 0 : Infinity;
+            }
+            return Math.abs(computed - exact) / Math.abs(exact);
+        }
+        
+        // 计算误差统计
+        function calculateErrorStats(errors, ulpErrors, relErrors) {
+            const maxError = Math.max(...errors);
+            const avgError = errors.reduce((sum, err) => sum + err, 0) / errors.length;
+            const rmse = Math.sqrt(errors.reduce((sum, err) => sum + err*err, 0) / errors.length);
+            
+            const maxUlpError = Math.max(...ulpErrors);
+            const avgUlpError = ulpErrors.reduce((sum, err) => sum + err, 0) / ulpErrors.length;
+            const ulpOverHalf = ulpErrors.filter(err => err > 0.5).length;
+            const ulpOverOne = ulpErrors.filter(err => err > 1).length;
+            
+            const maxRelError = Math.max(...relErrors);
+            const avgRelError = relErrors.reduce((sum, err) => sum + err, 0) / relErrors.length;
+            const relOver1Percent = relErrors.filter(err => err > 0.01).length;
+            const relOver5Percent = relErrors.filter(err => err > 0.05).length;
+            
+            return {
+                maxError: maxError,
+                avgError: avgError,
+                rmse: rmse,
+                maxUlpError: maxUlpError,
+                avgUlpError: avgUlpError,
+                ulpOverHalf: ulpOverHalf,
+                ulpOverOne: ulpOverOne,
+                maxRelError: maxRelError,
+                avgRelError: avgRelError,
+                relOver1Percent: relOver1Percent,
+                relOver5Percent: relOver5Percent
+            };
+        }
+        
+        // 更新数据表格
+        function updateDataTable(originalValues, reducedValues, taylorValues, exactValues, errors, relErrors, ulpErrors) {
+            const tableBody = document.getElementById('dataTableBody');
+            tableBody.innerHTML = '';
+            
+            const precision = parseInt(document.getElementById('precision').value) || 6;
+            
+            for (let i = 0; i < originalValues.length; i++) {
+                const row = document.createElement('tr');
+                
+                // 根据ULP误差大小设置行样式
+                if (ulpErrors[i] > 1) {
+                    row.style.backgroundColor = 'rgba(255, 100, 100, 0.2)';
+                } else if (ulpErrors[i] > 0.5) {
+                    row.style.backgroundColor = 'rgba(255, 200, 100, 0.2)';
+                }
+                
+                row.innerHTML = `
+                    <td>${i}</td>
+                    <td>${originalValues[i].toFixed(precision)}</td>
+                    <td>${reducedValues[i].toFixed(precision)}</td>
+                    <td>${taylorValues[i].toFixed(precision)}</td>
+                    <td>${exactValues[i].toFixed(precision)}</td>
+                    <td>${errors[i].toExponential(4)}</td>
+                    <td>${(relErrors[i] * 100).toFixed(4)}%</td>
+                    <td>${ulpErrors[i].toFixed(4)}</td>
+                `;
+                
+                tableBody.appendChild(row);
+            }
+            
+            // 添加排序功能
+            addSortingToTable();
+        }
+        
+        // 添加表格排序功能
+        function addSortingToTable() {
+            const table = document.getElementById('dataTable');
+            const headers = table.querySelectorAll('th[data-sort]');
+            
+            headers.forEach(header => {
+                header.addEventListener('click', () => {
+                    const sortBy = header.getAttribute('data-sort');
+                    const isAscending = header.classList.contains('asc');
+                    
+                    // 移除所有排序指示器
+                    headers.forEach(h => {
+                        h.classList.remove('asc', 'desc');
+                    });
+                    
+                    // 设置当前排序指示器
+                    header.classList.add(isAscending ? 'desc' : 'asc');
+                    
+                    // 排序数据
+                    sortTableData(sortBy, !isAscending);
+                });
+            });
+        }
+        
+        // 排序表格数据
+        function sortTableData(sortBy, ascending) {
+            if (!currentData) return;
+            
+            const indices = Array.from({length: currentData.originalValues.length}, (_, i) => i);
+            
+            indices.sort((a, b) => {
+                let valueA, valueB;
+                
+                switch(sortBy) {
+                    case 'index':
+                        valueA = a;
+                        valueB = b;
+                        break;
+                    case 'original':
+                        valueA = currentData.originalValues[a];
+                        valueB = currentData.originalValues[b];
+                        break;
+                    case 'reduced':
+                        valueA = currentData.reducedValues[a];
+                        valueB = currentData.reducedValues[b];
+                        break;
+                    case 'taylor':
+                        valueA = currentData.taylorValues[a];
+                        valueB = currentData.taylorValues[b];
+                        break;
+                    case 'exact':
+                        valueA = currentData.exactValues[a];
+                        valueB = currentData.exactValues[b];
+                        break;
+                    case 'absError':
+                        valueA = currentData.errors[a];
+                        valueB = currentData.errors[b];
+                        break;
+                    case 'relError':
+                        valueA = currentData.relErrors[a];
+                        valueB = currentData.relErrors[b];
+                        break;
+                    case 'ulpError':
+                        valueA = currentData.ulpErrors[a];
+                        valueB = currentData.ulpErrors[b];
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                if (valueA < valueB) return ascending ? -1 : 1;
+                if (valueA > valueB) return ascending ? 1 : -1;
+                return 0;
+            });
+            
+            // 重新排列数据
+            currentData.originalValues = indices.map(i => currentData.originalValues[i]);
+            currentData.reducedValues = indices.map(i => currentData.reducedValues[i]);
+            currentData.taylorValues = indices.map(i => currentData.taylorValues[i]);
+            currentData.exactValues = indices.map(i => currentData.exactValues[i]);
+            currentData.errors = indices.map(i => currentData.errors[i]);
+            currentData.relErrors = indices.map(i => currentData.relErrors[i]);
+            currentData.ulpErrors = indices.map(i => currentData.ulpErrors[i]);
+            
+            // 更新表格
+            updateDataTable(
+                currentData.originalValues,
+                currentData.reducedValues,
+                currentData.taylorValues,
+                currentData.exactValues,
+                currentData.errors,
+                currentData.relErrors,
+                currentData.ulpErrors
+            );
+        }
+        
+        // 更新统计信息
+        function updateStats(stats, dataLength) {
+            const precision = parseInt(document.getElementById('precision').value) || 6;
+            
+            document.getElementById('maxError').textContent = stats.maxError.toExponential(4);
+            document.getElementById('avgError').textContent = stats.avgError.toExponential(4);
+            document.getElementById('rmse').textContent = stats.rmse.toExponential(4);
+            document.getElementById('dataPoints').textContent = dataLength;
+            
+            document.getElementById('maxUlpError').textContent = stats.maxUlpError.toFixed(4);
+            document.getElementById('avgUlpError').textContent = stats.avgUlpError.toFixed(4);
+            document.getElementById('ulpOverHalf').textContent = `${stats.ulpOverHalf} (${(stats.ulpOverHalf/dataLength*100).toFixed(1)}%)`;
+            document.getElementById('ulpOverOne').textContent = `${stats.ulpOverOne} (${(stats.ulpOverOne/dataLength*100).toFixed(1)}%)`;
+            
+            document.getElementById('maxRelError').textContent = `${(stats.maxRelError * 100).toFixed(4)}%`;
+            document.getElementById('avgRelError').textContent = `${(stats.avgRelError * 100).toFixed(4)}%`;
+            document.getElementById('relOver1Percent').textContent = `${stats.relOver1Percent} (${(stats.relOver1Percent/dataLength*100).toFixed(1)}%)`;
+            document.getElementById('relOver5Percent').textContent = `${stats.relOver5Percent} (${(stats.relOver5Percent/dataLength*100).toFixed(1)}%)`;
+        }
+        
+        // 绘制误差图表
+        function drawErrorChart(labels, errors, relErrors, ulpErrors) {
+            const ctx = document.getElementById('errorChart').getContext('2d');
+            
+            if (errorChart) {
+                errorChart.destroy();
+            }
+            
+            const errorType = document.getElementById('errorType').value;
+            const chartType = document.getElementById('chartType').value;
+            
+            const datasets = [];
+            
+            if (errorType === 'absolute' || errorType === 'both') {
+                datasets.push({
+                    label: '绝对误差',
+                    data: errors,
+                    borderColor: '#fdbb2d',
+                    backgroundColor: 'rgba(253, 187, 45, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    yAxisID: 'y'
+                });
+            }
+            
+            if (errorType === 'relative' || errorType === 'both') {
+                datasets.push({
+                    label: '相对误差',
+                    data: relErrors.map(err => err * 100), // 转换为百分比
+                    borderColor: '#1a9fff',
+                    backgroundColor: 'rgba(26, 159, 255, 0.1)',
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0.4,
+                    yAxisID: errorType === 'both' ? 'y1' : 'y'
+                });
+            }
+            
+            datasets.push({
+                label: 'ULP误差',
+                data: ulpErrors,
+                borderColor: '#ff4d4d',
+                backgroundColor: 'rgba(255, 77, 77, 0.1)',
+                borderWidth: 2,
+                fill: false,
+                tension: 0.4,
+                yAxisID: errorType === 'both' ? 'y2' : (errorType === 'relative' ? 'y1' : 'y1')
+            });
+            
+            errorChart = new Chart(ctx, {
+                type: chartType,
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Taylor展开近似误差分析',
+                            color: 'white',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        legend: {
+                            labels: {
+                                color: 'white'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.dataset.label === '相对误差') {
+                                        label += context.parsed.y.toFixed(4) + '%';
+                                    } else if (context.dataset.label === '绝对误差') {
+                                        label += context.parsed.y.toExponential(4);
+                                    } else {
+                                        label += context.parsed.y.toFixed(4);
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '数据点索引',
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        y: {
+                            type: errorType === 'absolute' ? 'logarithmic' : 'linear',
+                            title: {
+                                display: true,
+                                text: errorType === 'absolute' ? '绝对误差（对数尺度）' : 
+                                      (errorType === 'relative' ? '相对误差 (%)' : '绝对误差（对数尺度）'),
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            position: 'left'
+                        },
+                        y1: {
+                            title: {
+                                display: true,
+                                text: errorType === 'both' ? '相对误差 (%)' : 'ULP误差',
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)',
+                                drawOnChartArea: errorType === 'both'
+                            },
+                            position: errorType === 'both' ? 'right' : 'left'
+                        },
+                        y2: {
+                            title: {
+                                display: true,
+                                text: 'ULP误差',
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)',
+                                drawOnChartArea: false
+                            },
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 绘制函数对比图表
+        function drawComparisonChart(labels, originalValues, taylorValues, exactValues, func) {
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+            
+            if (comparisonChart) {
+                comparisonChart.destroy();
+            }
+            
+            const chartType = document.getElementById('chartType').value;
+            
+            comparisonChart = new Chart(ctx, {
+                type: chartType,
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Taylor近似值',
+                            data: taylorValues,
+                            borderColor: '#fdbb2d',
+                            backgroundColor: 'rgba(253, 187, 45, 0.1)',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.4
+                        },
+                        {
+                            label: '精确值',
+                            data: exactValues,
+                            borderColor: '#1a9fff',
+                            backgroundColor: 'rgba(26, 159, 255, 0.1)',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Taylor展开与精确${func}函数对比`,
+                            color: 'white',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        legend: {
+                            labels: {
+                                color: 'white'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '数据点索引',
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '函数值',
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 绘制误差分布图表
+        function drawDistributionChart(ulpErrors, relErrors) {
+            const ctx = document.getElementById('distributionChart').getContext('2d');
+            
+            if (distributionChart) {
+                distributionChart.destroy();
+            }
+            
+            // 创建ULP误差分布直方图
+            const ulpBins = createHistogramBins(ulpErrors, 0, Math.max(...ulpErrors), 20);
+            const relBins = createHistogramBins(relErrors.map(err => err * 100), 0, Math.max(...relErrors.map(err => err * 100)), 20);
+            
+            distributionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ulpBins.labels,
+                    datasets: [
+                        {
+                            label: 'ULP误差分布',
+                            data: ulpBins.counts,
+                            backgroundColor: 'rgba(253, 187, 45, 0.7)',
+                            borderColor: '#fdbb2d',
+                            borderWidth: 1
+                        },
+                        {
+                            label: '相对误差分布 (%)',
+                            data: relBins.counts,
+                            backgroundColor: 'rgba(26, 159, 255, 0.7)',
+                            borderColor: '#1a9fff',
+                            borderWidth: 1,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '误差分布直方图',
+                            color: 'white',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        legend: {
+                            labels: {
+                                color: 'white'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '误差区间',
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'ULP误差频数',
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        y1: {
+                            title: {
+                                display: true,
+                                text: '相对误差频数',
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)',
+                                drawOnChartArea: false
+                            },
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 创建直方图区间
+        function createHistogramBins(data, min, max, binCount) {
+            const binSize = (max - min) / binCount;
+            const bins = Array(binCount).fill(0);
+            const labels = [];
+            
+            for (let i = 0; i < binCount; i++) {
+                const binStart = min + i * binSize;
+                const binEnd = min + (i + 1) * binSize;
+                labels.push(`${binStart.toFixed(2)} - ${binEnd.toFixed(2)}`);
+                
+                // 计算落在该区间的数据点数量
+                bins[i] = data.filter(value => value >= binStart && value < binEnd).length;
+            }
+            
+            // 处理最大值等于max的情况
+            bins[binCount-1] += data.filter(value => value === max).length;
+            
+            return { labels, counts: bins };
+        }
+        
+        // 导出数据为CSV
+        function exportToCSV() {
+            if (!currentData) {
+                alert('没有数据可导出');
+                return;
+            }
+            
+            const headers = ['索引', '原值', '降周期值', 'Taylor近似', '精确值', '绝对误差', '相对误差', 'ULP误差'];
+            const rows = [headers.join(',')];
+            
+            for (let i = 0; i < currentData.originalValues.length; i++) {
+                const row = [
+                    i,
+                    currentData.originalValues[i],
+                    currentData.reducedValues[i],
+                    currentData.taylorValues[i],
+                    currentData.exactValues[i],
+                    currentData.errors[i],
+                    currentData.relErrors[i],
+                    currentData.ulpErrors[i]
+                ];
+                rows.push(row.join(','));
+            }
+            
+            const csvContent = rows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '误差分析数据.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // 导出图表为PNG
+        function exportChartToPNG() {
+            const activeTab = document.querySelector('.tab.active').getAttribute('data-tab');
+            let chart;
+            
+            switch(activeTab) {
+                case 'error':
+                    chart = errorChart;
+                    break;
+                case 'comparison':
+                    chart = comparisonChart;
+                    break;
+                case 'distribution':
+                    chart = distributionChart;
+                    break;
+                default:
+                    chart = errorChart;
+            }
+            
+            if (!chart) {
+                alert('没有图表可导出');
+                return;
+            }
+            
+            const url = chart.toBase64Image();
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `误差分析图表-${activeTab}.png`;
+            a.click();
+        }
+        
+        // 保存会话
+        function saveSession() {
+            if (!currentData) {
+                alert('没有数据可保存');
+                return;
+            }
+            
+            const sessionData = {
+                inputs: {
+                    start: document.getElementById('start').value,
+                    stop: document.getElementById('stop').value,
+                    step: document.getElementById('step').value,
+                    n: document.getElementById('n').value,
+                    function: document.getElementById('function').value,
+                    precision: document.getElementById('precision').value
+                },
+                data: currentData
+            };
+            
+            localStorage.setItem('errorAnalysisSession', JSON.stringify(sessionData));
+            alert('会话已保存');
+        }
+        
+        // 加载会话
+        function loadSession() {
+            const sessionData = localStorage.getItem('errorAnalysisSession');
+            
+            if (!sessionData) {
+                alert('没有找到保存的会话');
+                return;
+            }
+            
+            try {
+                const data = JSON.parse(sessionData);
+                
+                // 恢复输入值
+                document.getElementById('start').value = data.inputs.start;
+                document.getElementById('stop').value = data.inputs.stop;
+                document.getElementById('step').value = data.inputs.step;
+                document.getElementById('n').value = data.inputs.n;
+                document.getElementById('function').value = data.inputs.function;
+                document.getElementById('precision').value = data.inputs.precision;
+                
+                // 恢复数据
+                currentData = data.data;
+                
+                // 更新界面
+                updateDataTable(
+                    currentData.originalValues,
+                    currentData.reducedValues,
+                    currentData.taylorValues,
+                    currentData.exactValues,
+                    currentData.errors,
+                    currentData.relErrors,
+                    currentData.ulpErrors
+                );
+                
+                const stats = calculateErrorStats(
+                    currentData.errors,
+                    currentData.ulpErrors,
+                    currentData.relErrors
+                );
+                
+                updateStats(stats, currentData.originalValues.length);
+                
+                const labels = Array.from({length: currentData.originalValues.length}, (_, i) => i.toString());
+                
+                drawErrorChart(labels, currentData.errors, currentData.relErrors, currentData.ulpErrors);
+                drawComparisonChart(labels, currentData.originalValues, currentData.taylorValues, currentData.exactValues, data.inputs.function);
+                drawDistributionChart(currentData.ulpErrors, currentData.relErrors);
+                
+                alert('会话已加载');
+            } catch (error) {
+                alert('加载会话时出错: ' + error.message);
+            }
+        }
+        
+        // 主计算函数
+        function calculateAndVisualize() {
+            try {
+                // 获取用户输入
+                const start = parseFloat(document.getElementById('start').value);
+                const stop = parseFloat(document.getElementById('stop').value);
+                const step = parseFloat(document.getElementById('step').value);
+                const n = parseInt(document.getElementById('n').value);
+                const func = document.getElementById('function').value;
+                const customMin = parseFloat(document.getElementById('customMin').value);
+                const customMax = parseFloat(document.getElementById('customMax').value);
+                
+                // 验证输入
+                if (isNaN(start) || isNaN(stop) || isNaN(step) || isNaN(n)) {
+                    alert('请输入有效的数值参数');
+                    return;
+                }
+                
+                if (step === 0) {
+                    alert('步长不能为0');
+                    return;
+                }
+                
+                if (n < 1) {
+                    alert('Taylor展开项数必须至少为1');
+                    return;
+                }
+                
+                // 生成Float32Array
+                const a = range(start, stop, step);
+                
+                // 获取映射区间
+                const domain = getFunctionDomain(func, customMin, customMax);
+                
+                // 降周期处理
+                const a1 = new Float32Array(a.length);
+                for (let i = 0; i < a.length; i++) {
+                    a1[i] = reduceToDomain(a[i], func, domain);
+                }
+                
+                // 计算Taylor展开近似值和精确值
+                const taylorResults = new Float32Array(a.length);
+                const exactResults = new Float32Array(a.length);
+                const errors = new Float32Array(a.length);
+                const relErrors = new Float32Array(a.length);
+                const ulpErrors = new Float32Array(a.length);
+                
+                for (let i = 0; i < a.length; i++) {
+                    taylorResults[i] = taylorApproximation(a1[i], n, func);
+                    exactResults[i] = exactFunction(a[i], func);
+                    errors[i] = Math.abs(taylorResults[i] - exactResults[i]);
+                    relErrors[i] = calculateRelativeError(taylorResults[i], exactResults[i]);
+                    ulpErrors[i] = calculateUlpError(taylorResults[i], exactResults[i]);
+                }
+                
+                // 保存当前数据
+                currentData = {
+                    originalValues: Array.from(a),
+                    reducedValues: Array.from(a1),
+                    taylorValues: Array.from(taylorResults),
+                    exactValues: Array.from(exactResults),
+                    errors: Array.from(errors),
+                    relErrors: Array.from(relErrors),
+                    ulpErrors: Array.from(ulpErrors)
+                };
+                
+                // 计算误差统计
+                const stats = calculateErrorStats(errors, ulpErrors, relErrors);
+                
+                // 生成标签（索引）
+                const labels = Array.from({length: a.length}, (_, i) => i.toString());
+                
+                // 更新界面
+                updateDataTable(a, a1, taylorResults, exactResults, errors, relErrors, ulpErrors);
+                updateStats(stats, a.length);
+                drawErrorChart(labels, errors, relErrors, ulpErrors);
+                drawComparisonChart(labels, a, taylorResults, exactResults, func);
+                drawDistributionChart(ulpErrors, relErrors);
+                
+            } catch (error) {
+                alert('计算过程中出现错误: ' + error.message);
+                console.error(error);
+            }
+        }
+        
+        // 初始化页面
+        function initPage() {
+            // 绑定计算按钮事件
+            document.getElementById('calculateBtn').addEventListener('click', calculateAndVisualize);
+            
+            // 绑定标签切换事件
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    
+                    tab.classList.add('active');
+                    document.getElementById(`${tab.getAttribute('data-tab')}-tab`).classList.add('active');
+                });
+            });
+            
+            // 绑定值域映射切换事件
+            document.getElementById('domain').addEventListener('change', function() {
+                const customDomainElements = document.querySelectorAll('.custom-domain');
+                if (this.value === 'custom') {
+                    customDomainElements.forEach(el => el.style.display = 'block');
+                } else {
+                    customDomainElements.forEach(el => el.style.display = 'none');
+                }
+            });
+            
+            // 绑定高级选项切换事件
+            document.getElementById('toggleAdvanced').addEventListener('click', function() {
+                const advancedOptions = document.querySelector('.advanced-options');
+                if (advancedOptions.style.display === 'none') {
+                    advancedOptions.style.display = 'block';
+                    this.textContent = '隐藏高级选项';
+                } else {
+                    advancedOptions.style.display = 'none';
+                    this.textContent = '显示高级选项';
+                }
+            });
+            
+            // 绑定导出按钮事件
+            document.getElementById('exportData').addEventListener('click', exportToCSV);
+            document.getElementById('exportChart').addEventListener('click', exportChartToPNG);
+            document.getElementById('saveSession').addEventListener('click', saveSession);
+            document.getElementById('loadSession').addEventListener('click', loadSession);
+            
+            // 页面加载时自动计算一次
+            window.addEventListener('load', calculateAndVisualize);
+        }
+        
+        // 初始化页面
+        initPage();
+    </script>
+</body>
+</html>
