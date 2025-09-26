@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IEEE 754浮点数误差分析工具</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/regression@2.0.1/dist/regression.min.js"></script>
+    <script src="https://unpkg.com/chart.js"></script>
+    <script src="https://unpkg.com/regression@2.0.1/dist/regression.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -26,13 +26,13 @@
             margin: 0 auto;
             background: rgba(0, 0, 0, 0.7);
             border-radius: 15px;
-            padding: 30px;
+            padding: 10px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
         
         header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 10px;
         }
         
         h1 {
@@ -44,7 +44,7 @@
         .description {
             font-size: 1.1rem;
             max-width: 800px;
-            margin: 0 auto 20px;
+            margin: 0 auto 10px;
             line-height: 1.6;
         }
         
@@ -269,9 +269,8 @@
     <div class="container">
         <header>
             <h1>IEEE 754浮点数误差分析工具</h1>
-            <p class="description">
-                本工具允许您生成一个Float32Array，将其值映射到[-π/2, π/2]区间，然后使用Taylor展开近似计算sin函数值，
-                并与Math.sin()的精确值进行比较，分析IEEE 754浮点数误差和ULP（Unit in the Last Place）误差。
+            <p class="description">本工具允许您生成一个Float32Array，降周期映射到[-π/2, π/2]区间后，使用Taylor展开近似计算sin函数值，
+并与Math.sin()的精确值比较，分析IEEE 754浮点数误差和ULP（Unit in the Last Place）误差。
             </p>
         </header>
         
